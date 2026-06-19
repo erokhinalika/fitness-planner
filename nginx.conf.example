@@ -1,0 +1,23 @@
+server {
+    listen 80;
+    server_name _;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    location = /api/food-search {
+        proxy_pass https://search.openfoodfacts.org/search;
+        proxy_http_version 1.1;
+        proxy_set_header Host search.openfoodfacts.org;
+        proxy_set_header Content-Type $http_content_type;
+        proxy_set_header User-Agent "AngelikaFitnessPlanner/1.0 (personal fitness app)";
+        proxy_ssl_server_name on;
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 25s;
+        proxy_send_timeout 25s;
+    }
+}
