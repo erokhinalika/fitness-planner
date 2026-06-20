@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { registerSW } from "virtual:pwa-register";
@@ -98,11 +98,27 @@ type ExerciseContext = {
   cue?: string;
 };
 
+type MuscleZone = "shoulders" | "chest" | "upperBack" | "lats" | "arms" | "core" | "glutes" | "hamstrings" | "quads" | "calves";
+
 const INSTALL_DISMISS_KEY = "angelika-pwa-install-dismissed";
+const ACTIVE_WORKOUT_SESSION_KEY = "angelika-active-workout-session-v1";
 const weeks = Array.from({ length: 8 }, (_, index) => index + 1);
+const workoutDayOffsets = [0, 2, 4, 5] as const;
 const workoutById = new Map(workouts.map((workout) => [workout.id, workout]));
 const exerciseById = new Map(exercises.map((exercise) => [exercise.id, exercise]));
 const categoryFilters: Array<ExerciseCategory | "Все"> = ["Все", "Верх", "Ягодицы", "Кор", "Кардио"];
+const muscleZoneLabels: Record<MuscleZone, string> = {
+  shoulders: "плечи",
+  chest: "грудь",
+  upperBack: "верх спины",
+  lats: "широчайшие",
+  arms: "руки",
+  core: "кор",
+  glutes: "ягодицы",
+  hamstrings: "задняя поверхность бедра",
+  quads: "передняя поверхность бедра",
+  calves: "голени",
+};
 
 function usePlannerStorage() {
   const [state, setState] = useState<PlannerMeta>(() => createDefaultMeta());
@@ -161,6 +177,55 @@ function getCurrentWeek(startDate: string) {
   if (Number.isNaN(start.getTime())) return 1;
   const diff = Date.now() - start.getTime();
   return clamp(Math.floor(diff / (7 * 24 * 60 * 60 * 1000)) + 1, 1, 8);
+}
+
+function getInputDate(value: string) {
+  const date = new Date(`${value}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function addDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function getLocalDayKey(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+}
+
+function getWorkoutDayOffset(workoutId: WorkoutId) {
+  const index = workouts.findIndex((workout) => workout.id === workoutId);
+  return workoutDayOffsets[index] ?? 0;
+}
+
+function getWorkoutDayLabel(workoutId: WorkoutId) {
+  return `День ${getWorkoutDayOffset(workoutId) + 1}`;
+}
+
+function getWorkoutPlanDate(startDate: string, week: number, workoutId: WorkoutId) {
+  const start = getInputDate(startDate);
+  if (!start) return null;
+  return addDays(start, (week - 1) * 7 + getWorkoutDayOffset(workoutId));
+}
+
+function formatPlanDate(date: Date | null) {
+  if (!date) return "дата не задана";
+  return date.toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
+}
+
+function formatRelativePlanDate(date: Date | null) {
+  if (!date) return "дата не задана";
+  const diffDays = Math.round((getLocalDayKey(date) - getLocalDayKey(new Date())) / (24 * 60 * 60 * 1000));
+  if (diffDays === -1) return "вчера";
+  if (diffDays === 0) return "сегодня";
+  if (diffDays === 1) return "завтра";
+  return date.toLocaleDateString("ru-RU", { weekday: "short", day: "numeric", month: "short" });
+}
+
+function getWorkoutScheduleLabel(startDate: string, week: number, workoutId: WorkoutId) {
+  const date = getWorkoutPlanDate(startDate, week, workoutId);
+  return `${getWorkoutDayLabel(workoutId)} · ${formatRelativePlanDate(date)}`;
 }
 
 function getNextWorkout(completed: Record<string, boolean>, currentWeek: number) {
@@ -268,7 +333,7 @@ function App() {
   const [newPlaylistUrl, setNewPlaylistUrl] = useState("");
   const [newPlaylistTitle, setNewPlaylistTitle] = useState("");
   const [exerciseSheet, setExerciseSheet] = useState<ExerciseContext | null>(null);
-  const [workoutSession, setWorkoutSession] = useState<{ workoutId: WorkoutId; week: number } | null>(null);
+  const [workoutSession, setWorkoutSession] = useState<{ workoutId: WorkoutId; week: number } | null>(() => readSavedWorkoutSession());
   const [reportOpen, setReportOpen] = useState(false);
   const [needRefresh, setNeedRefresh] = useState(false);
   const [isOffline, setIsOffline] = useState(() => !navigator.onLine);
@@ -626,6 +691,7 @@ function App() {
               activeWorkoutId={activeWorkoutId}
               completed={state.completed}
               currentWeek={currentWeek}
+              startDate={state.startDate}
               newPlaylistTitle={newPlaylistTitle}
               newPlaylistUrl={newPlaylistUrl}
               playlists={state.playlists}
@@ -705,6 +771,11 @@ function App() {
           onClose={() => setWorkoutSession(null)}
           onComplete={() => {
             toggleWorkout(workoutSession.week, workoutSession.workoutId);
+            clearSavedWorkoutSession();
+            setWorkoutSession(null);
+          }}
+          onDiscard={() => {
+            clearSavedWorkoutSession();
             setWorkoutSession(null);
           }}
         />
@@ -942,6 +1013,8 @@ function Dashboard({
 }) {
   const latestPhoto = photos[0];
   const bodySummary = formatBodySummary(state.measurements);
+  const nextWorkoutDate = getWorkoutPlanDate(state.startDate, nextWeek, nextWorkout.id);
+  const nextWorkoutSchedule = getWorkoutScheduleLabel(state.startDate, nextWeek, nextWorkout.id);
 
   return (
     <div className="grid min-w-0 max-w-full gap-5">
@@ -950,12 +1023,15 @@ function Dashboard({
           <div className="absolute -right-20 -top-24 h-64 w-64 rounded-full bg-coral blur-3xl opacity-25" />
           <div className="relative z-10 flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
             <div className="min-w-0">
-              <p className="text-sm font-medium text-lime-200">Сегодня</p>
+              <p className="text-sm font-medium text-lime-200">Следующая по плану</p>
               <h2 className="mt-2 max-w-2xl text-[2.25rem] font-semibold leading-[1] tracking-[-0.04em] text-white sm:text-5xl">
                 {nextWorkout.title}
               </h2>
               <p className="mt-4 max-w-2xl text-base leading-7 text-stone-300">
                 {nextWorkout.focus} · {nextWorkout.duration}
+              </p>
+              <p className="mt-2 text-sm font-semibold text-lime-100">
+                {nextWorkoutSchedule} · {formatPlanDate(nextWorkoutDate)}
               </p>
               <p className="mt-3 text-sm text-stone-400 sm:hidden">
                 {bodySummary.value}
@@ -978,6 +1054,7 @@ function Dashboard({
             <div>
               <p className="text-sm text-stone-400">Ближайшая тренировка</p>
               <h3 className="mt-1 text-2xl font-semibold tracking-[-0.03em] text-white">{nextWorkout.title}</h3>
+              <p className="mt-2 text-sm text-lime-200">{nextWorkoutSchedule}</p>
             </div>
             <span className="rounded-full bg-lime-300 px-3 py-1 text-xs font-bold text-stone-950">Неделя {nextWeek}</span>
           </div>
@@ -1029,7 +1106,7 @@ function Dashboard({
             type="button"
           >
             <Check size={18} />
-            {workoutDone ? "Выполнено" : "Готово!"}
+            {workoutDone ? "Выполнена · снять отметку" : "Отметить выполненной"}
           </button>
         </div>
       </section>
@@ -1039,6 +1116,7 @@ function Dashboard({
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {workouts.map((workout) => {
               const done = Boolean(state.completed[getWorkoutKey(currentWeek, workout.id)]);
+              const planDate = getWorkoutPlanDate(state.startDate, currentWeek, workout.id);
               return (
                 <div
                   className={cn(
@@ -1048,7 +1126,7 @@ function Dashboard({
                   key={workout.id}
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <p className="text-xs font-bold text-lime-200">{workout.shortDay}</p>
+                    <p className="text-xs font-bold text-lime-200">{getWorkoutScheduleLabel(state.startDate, currentWeek, workout.id)}</p>
                     {done && (
                       <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-lime-300 text-stone-950">
                         <Check size={12} strokeWidth={3} />
@@ -1056,7 +1134,9 @@ function Dashboard({
                     )}
                   </div>
                   <p className="mt-2 text-sm font-semibold leading-snug text-white">{workout.title}</p>
-                  <p className="mt-1.5 text-xs text-stone-500">{workout.duration}</p>
+                  <p className="mt-1.5 text-xs text-stone-500">
+                    {formatPlanDate(planDate)} · {workout.duration}
+                  </p>
                 </div>
               );
             })}
@@ -1069,6 +1149,9 @@ function Dashboard({
               value={state.startDate}
               onChange={(event) => onStartDateChange(event.target.value)}
             />
+            <span className="mt-2 block text-xs leading-5 text-stone-500">
+              Расписание считается от этой даты: День 1, День 3, День 5 и День 6 каждой недели.
+            </span>
           </label>
         </Panel>
 
@@ -1236,6 +1319,10 @@ function playWorkoutCompleteSound(audioContext: AudioContext) {
 
 function playRestEndSound(audioContext: AudioContext) {
   playCircuitTone(audioContext, 620, 120);
+}
+
+function vibrate(pattern: VibratePattern) {
+  if ("vibrate" in navigator) navigator.vibrate(pattern);
 }
 
 function createWorkState(workout: Workout, round: number, exerciseIndex: number): CircuitRuntime {
@@ -1551,6 +1638,108 @@ type SessionRuntime = {
   circuitRound: number;
 };
 
+type SavedWorkoutSession = {
+  version: 1;
+  workoutId: WorkoutId;
+  week: number;
+  runtime: SessionRuntime;
+};
+
+const sessionPhases: SessionPhase[] = ["warmup", "work", "rest", "circuit-work", "circuit-exercise-rest", "circuit-round-rest", "done"];
+
+function createInitialSessionRuntime(): SessionRuntime {
+  return {
+    phase: "warmup",
+    warmupIndex: 0,
+    exerciseIndex: 0,
+    setNumber: 1,
+    restSecondsLeft: 0,
+    workSecondsLeft: 0,
+    manualWork: false,
+    paused: false,
+    circuitRound: 1,
+  };
+}
+
+function isNumberInRange(value: unknown, min: number, max: number): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= min && value <= max;
+}
+
+function normalizeSavedRuntime(value: unknown, workout: Workout): SessionRuntime | null {
+  if (!value || typeof value !== "object") return null;
+  const runtime = value as Partial<SessionRuntime>;
+  const phase = runtime.phase;
+  if (!phase || !sessionPhases.includes(phase)) return null;
+  if (!isNumberInRange(runtime.warmupIndex, 0, warmupSteps.length - 1)) return null;
+  if (!isNumberInRange(runtime.exerciseIndex, 0, Math.max(0, workout.exercises.length - 1))) return null;
+  if (!isNumberInRange(runtime.setNumber, 1, 20)) return null;
+  if (!isNumberInRange(runtime.restSecondsLeft, 0, 60 * 60)) return null;
+  if (!isNumberInRange(runtime.workSecondsLeft, 0, 60 * 60)) return null;
+  if (typeof runtime.manualWork !== "boolean" || typeof runtime.paused !== "boolean") return null;
+  if (!isNumberInRange(runtime.circuitRound, 1, workout.circuit?.rounds ?? 1)) return null;
+
+  return {
+    phase,
+    warmupIndex: runtime.warmupIndex,
+    exerciseIndex: runtime.exerciseIndex,
+    setNumber: runtime.setNumber,
+    restSecondsLeft: runtime.restSecondsLeft,
+    workSecondsLeft: runtime.workSecondsLeft,
+    manualWork: runtime.manualWork,
+    paused: runtime.paused,
+    circuitRound: runtime.circuitRound,
+  };
+}
+
+function readSavedWorkoutSession(): { workoutId: WorkoutId; week: number } | null {
+  try {
+    const raw = localStorage.getItem(ACTIVE_WORKOUT_SESSION_KEY);
+    if (!raw) return null;
+    const saved = JSON.parse(raw) as Partial<SavedWorkoutSession>;
+    if (saved.version !== 1 || typeof saved.workoutId !== "string" || typeof saved.week !== "number") return null;
+    const workout = workoutById.get(saved.workoutId as WorkoutId);
+    if (!workout || !isNumberInRange(saved.week, 1, weeks.length)) return null;
+    if (!normalizeSavedRuntime(saved.runtime, workout)) return null;
+    return { workoutId: saved.workoutId as WorkoutId, week: saved.week };
+  } catch {
+    return null;
+  }
+}
+
+function readSavedWorkoutRuntime(workout: Workout, week: number): SessionRuntime | null {
+  try {
+    const raw = localStorage.getItem(ACTIVE_WORKOUT_SESSION_KEY);
+    if (!raw) return null;
+    const saved = JSON.parse(raw) as Partial<SavedWorkoutSession>;
+    if (saved.version !== 1 || saved.workoutId !== workout.id || saved.week !== week) return null;
+    return normalizeSavedRuntime(saved.runtime, workout);
+  } catch {
+    return null;
+  }
+}
+
+function saveWorkoutSession(workout: Workout, week: number, runtime: SessionRuntime) {
+  try {
+    const saved: SavedWorkoutSession = {
+      version: 1,
+      workoutId: workout.id,
+      week,
+      runtime,
+    };
+    localStorage.setItem(ACTIVE_WORKOUT_SESSION_KEY, JSON.stringify(saved));
+  } catch {
+    // Saving workout progress is best-effort.
+  }
+}
+
+function clearSavedWorkoutSession() {
+  try {
+    localStorage.removeItem(ACTIVE_WORKOUT_SESSION_KEY);
+  } catch {
+    // Clearing workout progress is best-effort.
+  }
+}
+
 function createCircuitWorkState(workout: Workout, round: number, exerciseIndex: number): Pick<SessionRuntime, "phase" | "circuitRound" | "exerciseIndex" | "workSecondsLeft" | "manualWork" | "restSecondsLeft"> {
   const item = workout.exercises[exerciseIndex];
   const parsed = parseWorkDuration(item.volume);
@@ -1577,27 +1766,20 @@ function createCircuitWorkState(workout: Workout, round: number, exerciseIndex: 
 function WorkoutSession({
   onClose,
   onComplete,
+  onDiscard,
   week,
   workout,
 }: {
   onClose: () => void;
   onComplete: () => void;
+  onDiscard: () => void;
   week: number;
   workout: Workout;
 }) {
   const isCircuit = Boolean(workout.circuit);
   const audioRef = useRef<AudioContext | null>(null);
-  const [runtime, setRuntime] = useState<SessionRuntime>({
-    phase: "warmup",
-    warmupIndex: 0,
-    exerciseIndex: 0,
-    setNumber: 1,
-    restSecondsLeft: 0,
-    workSecondsLeft: 0,
-    manualWork: false,
-    paused: false,
-    circuitRound: 1,
-  });
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null);
+  const [runtime, setRuntime] = useState<SessionRuntime>(() => readSavedWorkoutRuntime(workout, week) ?? createInitialSessionRuntime());
 
   const circuit = workout.circuit;
   const totalExercises = workout.exercises.length;
@@ -1616,6 +1798,7 @@ function WorkoutSession({
     const item = workout.exercises[exerciseIndex];
     const plan = parseSetPlan(item.volume);
     if (plan.timedSeconds) {
+      ensureAudio();
       setRuntime((current) => ({
         ...current,
         phase: "work",
@@ -1706,6 +1889,8 @@ function WorkoutSession({
   function advanceAfterStrengthTimedWork(current: SessionRuntime): SessionRuntime {
     const plan = parseSetPlan(workout.exercises[current.exerciseIndex].volume);
     if (current.setNumber < plan.sets) {
+      playRestEndSound(ensureAudio());
+      vibrate(160);
       return {
         ...current,
         phase: "rest",
@@ -1715,6 +1900,8 @@ function WorkoutSession({
       };
     }
     if (current.exerciseIndex + 1 < totalExercises) {
+      playRestEndSound(ensureAudio());
+      vibrate(160);
       return {
         ...current,
         phase: "rest",
@@ -1725,6 +1912,7 @@ function WorkoutSession({
       };
     }
     playWorkoutCompleteSound(ensureAudio());
+    vibrate([220, 80, 220]);
     return { ...current, phase: "done", paused: false };
   }
 
@@ -1734,6 +1922,8 @@ function WorkoutSession({
     const isLastRound = current.circuitRound >= circuit.rounds;
 
     if (!isLastExercise) {
+      playRestEndSound(ensureAudio());
+      vibrate(140);
       return {
         ...current,
         phase: "circuit-exercise-rest",
@@ -1752,6 +1942,7 @@ function WorkoutSession({
       };
     }
     playWorkoutCompleteSound(ensureAudio());
+    vibrate([220, 80, 220]);
     return { ...current, phase: "done", manualWork: false, paused: false };
   }
 
@@ -1780,6 +1971,31 @@ function WorkoutSession({
     setRuntime((current) => ({ ...current, paused: !current.paused }));
   }
 
+  function closeSession() {
+    if (runtime.phase === "done") {
+      onDiscard();
+      return;
+    }
+    onClose();
+  }
+
+  const requestScreenWakeLock = useCallback(async () => {
+    if (!("wakeLock" in navigator) || document.visibilityState !== "visible" || wakeLockRef.current) return;
+    try {
+      const lock = await navigator.wakeLock.request("screen");
+      wakeLockRef.current = lock;
+      lock.addEventListener("release", () => {
+        if (wakeLockRef.current === lock) wakeLockRef.current = null;
+      });
+    } catch {
+      // Wake lock is optional.
+    }
+  }, []);
+
+  useEffect(() => {
+    saveWorkoutSession(workout, week, runtime);
+  }, [runtime, week, workout]);
+
   useEffect(() => {
     document.body.style.overflow = "hidden";
     return () => {
@@ -1788,29 +2004,31 @@ function WorkoutSession({
   }, []);
 
   useEffect(() => {
-    let lock: WakeLockSentinel | null = null;
-    async function acquireWakeLock() {
-      try {
-        if ("wakeLock" in navigator) {
-          lock = await navigator.wakeLock.request("screen");
-        }
-      } catch {
-        // Wake lock is optional.
-      }
+    function onVisibilityChange() {
+      if (document.visibilityState === "visible") void requestScreenWakeLock();
     }
-    void acquireWakeLock();
+
+    void requestScreenWakeLock();
+    document.addEventListener("visibilitychange", onVisibilityChange);
     return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      const lock = wakeLockRef.current;
+      wakeLockRef.current = null;
       void lock?.release();
     };
-  }, []);
+  }, [requestScreenWakeLock]);
+
+  useEffect(() => {
+    if (runtime.phase !== "done") void requestScreenWakeLock();
+  }, [requestScreenWakeLock, runtime.phase]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") closeSession();
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
+  }, [closeSession]);
 
   useEffect(() => {
     if (runtime.paused || runtime.phase === "warmup" || runtime.phase === "done") return;
@@ -1882,7 +2100,7 @@ function WorkoutSession({
       <header className="flex shrink-0 items-center justify-between gap-3 border-b border-white/[0.06] px-4 py-3 sm:px-6">
         <button
           className="grid h-10 w-10 place-items-center rounded-full text-stone-400 transition hover:bg-white/[0.06] hover:text-white"
-          onClick={onClose}
+          onClick={closeSession}
           type="button"
           aria-label="Закрыть"
         >
@@ -1928,10 +2146,11 @@ function WorkoutSession({
             <ExerciseMedia exercise={currentExercise} />
             <div>
               <h2 className="text-2xl font-semibold tracking-[-0.03em] text-white sm:text-3xl">{currentExercise.name}</h2>
-              <p className="mt-2 text-sm text-stone-400">
+            <p className="mt-2 text-sm text-stone-400">
                 {currentItem.volume} · {currentItem.load}
               </p>
             </div>
+            <MuscleFocusCard exercise={currentExercise} compact />
             <p className="rounded-2xl bg-white/[0.04] px-4 py-3 text-sm leading-6 text-stone-300">{currentItem.cue}</p>
             {!runtime.manualWork && runtime.workSecondsLeft > 0 && (
               <p className="text-center text-6xl font-semibold tabular-nums tracking-[-0.05em] text-lime-200">
@@ -1977,6 +2196,7 @@ function WorkoutSession({
             <p className="text-sm leading-6 text-stone-400">
               {workout.title} на неделе {week} пройдена. Можно отметить выполнение и закрыть режим.
             </p>
+            <CompletionEffectPanel workout={workout} />
           </div>
         )}
       </div>
@@ -2054,7 +2274,7 @@ function WorkoutSession({
               <button className="rounded-2xl bg-lime-300 px-4 py-3.5 text-sm font-bold text-stone-950" onClick={onComplete} type="button">
                 Готово!
               </button>
-              <button className="rounded-2xl bg-white/[0.06] px-4 py-3 text-sm font-semibold text-stone-300" onClick={onClose} type="button">
+              <button className="rounded-2xl bg-white/[0.06] px-4 py-3 text-sm font-semibold text-stone-300" onClick={onDiscard} type="button">
                 Закрыть без отметки
               </button>
             </>
@@ -2065,11 +2285,47 @@ function WorkoutSession({
   );
 }
 
+function CompletionEffectPanel({ workout }: { workout: Workout }) {
+  const previewExercises = workout.exercises
+    .map((item) => exerciseById.get(item.exerciseId))
+    .filter((exercise): exercise is Exercise => Boolean(exercise?.mediaUrl))
+    .slice(0, 4);
+
+  return (
+    <div className="rounded-[26px] border border-lime-300/15 bg-white/[0.04] p-4 text-left">
+      <p className="text-sm font-semibold text-lime-200">{workout.completionEffect.title}</p>
+      <p className="mt-2 text-sm leading-6 text-stone-300">{workout.completionEffect.summary}</p>
+
+      {previewExercises.length > 0 && (
+        <div className="mt-4 grid grid-cols-4 gap-2">
+          {previewExercises.map((exercise) => (
+            <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/30" key={exercise.id}>
+              <img className="aspect-square w-full object-contain" src={exercise.mediaUrl} alt={exercise.name} loading="lazy" />
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-4 grid gap-2">
+        {workout.completionEffect.bullets.map((item) => (
+          <div className="flex gap-2 text-sm leading-6 text-stone-300" key={item}>
+            <Check className="mt-1 shrink-0 text-lime-300" size={15} strokeWidth={2.5} />
+            <span>{item}</span>
+          </div>
+        ))}
+      </div>
+
+      <p className="mt-4 rounded-2xl bg-black/24 px-3 py-2.5 text-xs leading-5 text-stone-500">{workout.completionEffect.recovery}</p>
+    </div>
+  );
+}
+
 function TrainingPlan({
   activeWorkout,
   activeWorkoutId,
   completed,
   currentWeek,
+  startDate,
   newPlaylistTitle,
   newPlaylistUrl,
   playlists,
@@ -2088,6 +2344,7 @@ function TrainingPlan({
   activeWorkoutId: WorkoutId;
   completed: Record<string, boolean>;
   currentWeek: number;
+  startDate: string;
   newPlaylistTitle: string;
   newPlaylistUrl: string;
   playlists: Playlist[];
@@ -2103,6 +2360,7 @@ function TrainingPlan({
   onWeightLogChange: (week: number, exerciseId: string, value: string) => void;
 }) {
   const block = getProgressionForWeek(currentWeek);
+  const activeWorkoutDone = Boolean(completed[getWorkoutKey(currentWeek, activeWorkoutId)]);
   return (
     <div className="grid min-w-0 max-w-full gap-5">
       <PageTitle icon={Dumbbell} title="Тренировки" subtitle="4 дня в неделю" />
@@ -2136,6 +2394,19 @@ function TrainingPlan({
           >
             <Play size={18} />
             Начать тренировку
+          </button>
+          <button
+            className={cn(
+              "mb-4 flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-bold transition",
+              activeWorkoutDone
+                ? "border border-lime-300/35 bg-lime-300/12 text-lime-100"
+                : "border border-white/10 bg-white/[0.06] text-white hover:bg-white/[0.1]",
+            )}
+            onClick={() => onToggleWorkout(currentWeek, activeWorkoutId)}
+            type="button"
+          >
+            <Check size={18} />
+            {activeWorkoutDone ? "Выполнена · снять отметку" : "Отметить выполненной"}
           </button>
           <div className="grid gap-3">
             {activeWorkout.exercises.map((item, index) => {
@@ -2195,17 +2466,21 @@ function TrainingPlan({
                   <div className="grid grid-cols-4 gap-2">
                     {workouts.map((workout) => {
                       const done = Boolean(completed[getWorkoutKey(week, workout.id)]);
+                      const planDate = getWorkoutPlanDate(startDate, week, workout.id);
                       return (
                         <button
                           className={cn(
-                            "h-10 rounded-xl text-xs font-bold transition",
+                            "min-h-12 rounded-xl px-1 text-xs font-bold leading-tight transition",
                             done ? "bg-lime-300 text-stone-950" : "bg-black/30 text-stone-500 hover:text-white",
                           )}
                           key={workout.id}
                           onClick={() => onToggleWorkout(week, workout.id)}
                           type="button"
                         >
-                          {workout.shortDay}
+                          <span className="block">Д{getWorkoutDayOffset(workout.id) + 1}</span>
+                          <span className={cn("block text-[10px] font-semibold", done ? "text-stone-800" : "text-stone-600")}>
+                            {formatPlanDate(planDate)}
+                          </span>
                         </button>
                       );
                     })}
@@ -2221,14 +2496,18 @@ function TrainingPlan({
               {journalExerciseIds.map((exerciseId, index) => {
                 const exercise = exerciseById.get(exerciseId);
                 if (!exercise) return null;
+                const plannedLoad = getPlannedLoad(exerciseId);
                 return (
                   <label className={cn("block px-4 py-3", index > 0 && "border-t border-white/[0.06]")} key={exerciseId}>
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-sm font-medium text-white">{exercise.name}</span>
+                    <div className="grid gap-3 sm:grid-cols-[1fr_12rem] sm:items-center">
+                      <div className="min-w-0">
+                        <span className="block text-sm font-medium leading-5 text-white">{exercise.name}</span>
+                        <span className="mt-1 block break-words text-xs leading-5 text-stone-500">план: {plannedLoad}</span>
+                      </div>
                       <input
-                        className="w-24 rounded-xl bg-black/30 px-3 py-2 text-right text-sm text-white outline-none ring-1 ring-white/10 focus:ring-lime-300/40"
+                        className="w-full rounded-xl bg-black/30 px-3 py-2 text-left text-sm text-white outline-none ring-1 ring-white/10 placeholder:text-stone-600 focus:ring-lime-300/40 sm:text-right"
                         inputMode="decimal"
-                        placeholder={getPlannedLoad(exerciseId)}
+                        placeholder="факт"
                         value={weightLogs[getWeightLogKey(currentWeek, exerciseId)] ?? ""}
                         onChange={(event) => onWeightLogChange(currentWeek, exerciseId, event.target.value)}
                       />
@@ -2434,8 +2713,9 @@ function ExerciseLibrary({
           <Panel title={activeExercise.name} icon={Library} right={activeExercise.category}>
           <ExerciseMedia exercise={activeExercise} />
 
-          <p className="mt-5 text-sm font-semibold text-lime-200">Работает</p>
-          <p className="mt-2 text-lg font-semibold leading-7 text-white">{activeExercise.muscles}</p>
+          <div className="mt-5">
+            <MuscleFocusCard exercise={activeExercise} />
+          </div>
 
           <div className="mt-6 grid gap-4 md:grid-cols-2">
             <div className="rounded-[24px] bg-white/[0.04] p-4">
@@ -2454,11 +2734,122 @@ function ExerciseLibrary({
   );
 }
 
+function getExerciseMuscleZones(exercise: Exercise): MuscleZone[] {
+  const text = `${exercise.category} ${exercise.muscles}`.toLowerCase();
+  const zones = new Set<MuscleZone>();
+
+  if (text.includes("плеч") || text.includes("дельт") || text.includes("ротатор")) zones.add("shoulders");
+  if (text.includes("груд")) zones.add("chest");
+  if (text.includes("ромбовид") || text.includes("трапец") || text.includes("верх спины") || text.includes("осан")) zones.add("upperBack");
+  if (text.includes("широчай")) zones.add("lats");
+  if (text.includes("бицеп") || text.includes("трицеп") || text.includes("предплеч") || text.includes("рук")) zones.add("arms");
+  if (text.includes("кор") || text.includes("живот") || text.includes("таз") || text.includes("поясниц")) zones.add("core");
+  if (text.includes("ягод")) zones.add("glutes");
+  if (text.includes("задняя поверхность бедра") || text.includes("бедра")) zones.add("hamstrings");
+  if (text.includes("сгибатели бедра") || text.includes("ноги")) zones.add("quads");
+  if (text.includes("голен") || text.includes("стоп")) zones.add("calves");
+
+  if (zones.size === 0) {
+    if (exercise.category === "Верх") zones.add("shoulders").add("arms").add("upperBack");
+    if (exercise.category === "Ягодицы") zones.add("glutes").add("hamstrings");
+    if (exercise.category === "Кор") zones.add("core");
+    if (exercise.category === "Кардио") zones.add("shoulders").add("core").add("quads").add("calves");
+  }
+
+  return Array.from(zones);
+}
+
+function MuscleFocusCard({ exercise, compact = false }: { exercise: Exercise; compact?: boolean }) {
+  const zones = getExerciseMuscleZones(exercise);
+  return (
+    <div className={cn("rounded-[24px] border border-lime-300/15 bg-lime-300/[0.06] p-4", compact && "p-3")}>
+      <div className="grid gap-4 sm:grid-cols-[150px_1fr]">
+        <MuscleMap zones={zones} />
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-lime-200">Какие мышцы должны работать</p>
+          <p className={cn("mt-2 leading-6 text-stone-200", compact ? "text-sm" : "text-base")}>{exercise.muscles}</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {zones.map((zone) => (
+              <span className="rounded-full bg-lime-300/12 px-3 py-1 text-xs font-semibold text-lime-100" key={zone}>
+                {muscleZoneLabels[zone]}
+              </span>
+            ))}
+          </div>
+          <p className="mt-3 text-xs leading-5 text-stone-500">
+            Основное усилие должно ощущаться в подсвеченных зонах. Если вместо них забирают шею, поясница или суставы, уменьши нагрузку и проверь технику.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MuscleMap({ zones }: { zones: MuscleZone[] }) {
+  const active = new Set(zones);
+  const fill = (zone: MuscleZone) => (active.has(zone) ? "#bef264" : "#30342b");
+  const softFill = (zone: MuscleZone) => (active.has(zone) ? "#fb7185" : "#242820");
+
+  return (
+    <div className="mx-auto grid w-full max-w-[160px] gap-2">
+      <svg className="h-auto w-full" viewBox="0 0 160 210" role="img" aria-label="Схема рабочих мышц">
+        <rect width="160" height="210" rx="22" fill="#11140f" />
+        <text x="40" y="22" fill="#a8a29e" fontSize="10" textAnchor="middle">
+          спереди
+        </text>
+        <text x="120" y="22" fill="#a8a29e" fontSize="10" textAnchor="middle">
+          сзади
+        </text>
+
+        <circle cx="40" cy="39" r="10" fill="#4b5244" />
+        <path d="M24 58 Q40 48 56 58 L52 112 Q40 123 28 112 Z" fill={fill("core")} stroke="#1f241d" strokeWidth="2" />
+        <path d="M25 58 Q18 66 15 82" stroke={fill("shoulders")} strokeWidth="8" strokeLinecap="round" />
+        <path d="M55 58 Q62 66 65 82" stroke={fill("shoulders")} strokeWidth="8" strokeLinecap="round" />
+        <path d="M15 82 L12 116" stroke={fill("arms")} strokeWidth="8" strokeLinecap="round" />
+        <path d="M65 82 L68 116" stroke={fill("arms")} strokeWidth="8" strokeLinecap="round" />
+        <path d="M29 67 Q40 61 51 67 L49 86 Q40 93 31 86 Z" fill={fill("chest")} opacity="0.95" />
+        <path d="M31 114 L25 166" stroke={fill("quads")} strokeWidth="12" strokeLinecap="round" />
+        <path d="M49 114 L55 166" stroke={fill("quads")} strokeWidth="12" strokeLinecap="round" />
+        <path d="M25 166 L23 193" stroke={fill("calves")} strokeWidth="8" strokeLinecap="round" />
+        <path d="M55 166 L57 193" stroke={fill("calves")} strokeWidth="8" strokeLinecap="round" />
+
+        <circle cx="120" cy="39" r="10" fill="#4b5244" />
+        <path d="M104 58 Q120 48 136 58 L132 112 Q120 123 108 112 Z" fill={fill("upperBack")} stroke="#1f241d" strokeWidth="2" />
+        <path d="M109 72 Q120 62 131 72 L128 98 Q120 108 112 98 Z" fill={fill("lats")} opacity="0.96" />
+        <path d="M105 58 Q98 66 95 82" stroke={fill("shoulders")} strokeWidth="8" strokeLinecap="round" />
+        <path d="M135 58 Q142 66 145 82" stroke={fill("shoulders")} strokeWidth="8" strokeLinecap="round" />
+        <path d="M95 82 L92 116" stroke={fill("arms")} strokeWidth="8" strokeLinecap="round" />
+        <path d="M145 82 L148 116" stroke={fill("arms")} strokeWidth="8" strokeLinecap="round" />
+        <path d="M109 111 Q120 121 131 111 L129 130 Q120 137 111 130 Z" fill={softFill("glutes")} />
+        <path d="M111 132 L105 166" stroke={fill("hamstrings")} strokeWidth="12" strokeLinecap="round" />
+        <path d="M129 132 L135 166" stroke={fill("hamstrings")} strokeWidth="12" strokeLinecap="round" />
+        <path d="M105 166 L103 193" stroke={fill("calves")} strokeWidth="8" strokeLinecap="round" />
+        <path d="M135 166 L137 193" stroke={fill("calves")} strokeWidth="8" strokeLinecap="round" />
+      </svg>
+      <div className="flex items-center justify-center gap-2 text-[11px] font-semibold text-stone-500">
+        <span className="h-2 w-2 rounded-full bg-lime-300" />
+        рабочая зона
+      </div>
+    </div>
+  );
+}
+
 function ExerciseMedia({ exercise }: { exercise: Exercise }) {
+  const imageRef = useRef<HTMLImageElement | null>(null);
   const [mediaState, setMediaState] = useState<"loading" | "loaded" | "failed">(exercise.mediaUrl ? "loading" : "failed");
 
   useEffect(() => {
-    setMediaState(exercise.mediaUrl ? "loading" : "failed");
+    if (!exercise.mediaUrl) {
+      setMediaState("failed");
+      return;
+    }
+
+    const image = imageRef.current;
+    if (image?.complete) {
+      setMediaState(image.naturalWidth > 0 ? "loaded" : "failed");
+      return;
+    }
+
+    setMediaState("loading");
   }, [exercise.id, exercise.mediaUrl]);
 
   if (!exercise.mediaUrl || mediaState === "failed") {
@@ -2474,6 +2865,7 @@ function ExerciseMedia({ exercise }: { exercise: Exercise }) {
     <div className="relative aspect-square w-full max-h-[min(72vh,420px)] overflow-hidden rounded-[30px] border border-white/10 bg-[#141711]">
       <img
         className={cn("h-full w-full object-contain object-center", mediaState === "loading" && "opacity-0")}
+        ref={imageRef}
         src={exercise.mediaUrl}
         alt={exercise.name}
         onLoad={() => setMediaState("loaded")}
@@ -2564,9 +2956,8 @@ function ExerciseDetailSheet({ context, onClose }: { context: ExerciseContext; o
             <div className="rounded-[24px] bg-white/[0.04] p-4">
               <p className="text-sm font-semibold text-stone-300">Подготовка</p>
               <p className="mt-2 text-sm leading-6 text-stone-400">{exercise.setup}</p>
-              <p className="mt-4 text-sm font-semibold text-stone-300">Работает</p>
-              <p className="mt-2 text-sm leading-6 text-stone-400">{exercise.muscles}</p>
             </div>
+            <MuscleFocusCard exercise={exercise} />
             {exercise.sourceUrl && (
               <a
                 className="inline-flex items-center gap-2 rounded-2xl bg-white/[0.06] px-4 py-3 text-sm font-semibold text-lime-300 transition hover:bg-white/10 hover:text-lime-200"
@@ -2738,10 +3129,10 @@ function WeightJournal({
               className={cn("block px-4 py-3", index > 0 && "border-t border-white/[0.06]")}
               key={exerciseId}
             >
-              <div className="flex items-start justify-between gap-3">
-                <div>
+              <div className="grid gap-3 sm:grid-cols-[1fr_8rem] sm:items-start">
+                <div className="min-w-0">
                   <p className="font-semibold text-white">{exercise.name}</p>
-                  <p className="mt-1 text-xs text-stone-500">план: {getPlannedLoad(exerciseId)}</p>
+                  <p className="mt-1 break-words text-xs leading-5 text-stone-500">план: {getPlannedLoad(exerciseId)}</p>
                   {previous && (
                     <p className="mt-1 text-xs text-lime-200/80">
                       неделя {previous.week}: {previous.value}
@@ -2749,7 +3140,7 @@ function WeightJournal({
                   )}
                 </div>
                 <input
-                  className="w-28 rounded-xl bg-black/30 px-3 py-2 text-right text-sm text-white outline-none ring-1 ring-white/10 focus:ring-lime-300/40"
+                  className="w-full rounded-xl bg-black/30 px-3 py-2 text-left text-sm text-white outline-none ring-1 ring-white/10 focus:ring-lime-300/40 sm:text-right"
                   inputMode="decimal"
                   placeholder="кг"
                   value={weightLogs[getWeightLogKey(activeWeek, exerciseId)] ?? ""}

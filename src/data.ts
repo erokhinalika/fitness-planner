@@ -49,6 +49,13 @@ export type CircuitConfig = {
   roundRestSec: number;
 };
 
+export type WorkoutCompletionEffect = {
+  title: string;
+  summary: string;
+  bullets: string[];
+  recovery: string;
+};
+
 export type Workout = {
   id: WorkoutId;
   day: string;
@@ -58,6 +65,7 @@ export type Workout = {
   duration: string;
   accent: string;
   exercises: WorkoutExercise[];
+  completionEffect: WorkoutCompletionEffect;
   note?: string;
   circuit?: CircuitConfig;
 };
@@ -450,13 +458,23 @@ export const workouts: Workout[] = [
     focus: "спина, плечи, руки, осанка",
     duration: "55-60 мин",
     accent: "спина, плечи, руки",
+    completionEffect: {
+      title: "После тренировки",
+      summary: "Должно ощущаться, что спина раскрылась, плечи стали стабильнее, а руки получили рабочую, но не болезненную нагрузку.",
+      bullets: [
+        "приятное тепло между лопатками и в широчайших",
+        "плечи уставшие, но без зажима в шее",
+        "бицепс и трицепс чувствуют работу, но локти не болят",
+      ],
+      recovery: "Если забилась шея или поясница, в следующий раз снизь резинку/вес и держи лопатки спокойнее.",
+    },
     exercises: [
-      { exerciseId: "barbell-row", volume: "4x10-12", load: "10-18 кг", cue: "лопатки назад и вниз" },
-      { exerciseId: "band-press", volume: "4x10-12", load: "средняя резинка", cue: "рёбра вниз" },
-      { exerciseId: "face-pull", volume: "4x15", load: "к двери", cue: "локти в стороны" },
-      { exerciseId: "lateral-raise", volume: "4x15", load: "1 кг/резинка", cue: "медленная негативная фаза" },
-      { exerciseId: "biceps", volume: "3x15", load: "резинка/штанга", cue: "локти прижаты" },
-      { exerciseId: "triceps", volume: "3x15", load: "резинка", cue: "движется предплечье" },
+      { exerciseId: "barbell-row", volume: "4x10-12", load: "штанга 10-12 кг общим весом", cue: "лопатки назад и вниз" },
+      { exerciseId: "band-press", volume: "4x10-12", load: "лёгкая/средняя резинка с ручками", cue: "рёбра вниз" },
+      { exerciseId: "face-pull", volume: "4x15", load: "лёгкая резинка с ручками к двери", cue: "локти в стороны" },
+      { exerciseId: "lateral-raise", volume: "4x15", load: "утяжелители 1 кг или лёгкая резинка", cue: "медленная негативная фаза" },
+      { exerciseId: "biceps", volume: "3x12-15", load: "лёгкая резинка с ручками", cue: "локти прижаты" },
+      { exerciseId: "triceps", volume: "3x12-15", load: "лёгкая/средняя резинка сверху", cue: "движется предплечье" },
       { exerciseId: "plank", volume: "3x45-60 сек", load: "свой вес", cue: "таз стабилен" },
       { exerciseId: "dead-bug", volume: "3x12-15", load: "свой вес", cue: "поясница прижата" },
     ],
@@ -465,16 +483,26 @@ export const workouts: Workout[] = [
     id: "glutes",
     day: "Среда",
     shortDay: "Ср",
-    title: "Ягодицы",
-    focus: "ягодицы и задняя поверхность бедра",
+    title: "Ягодицы + задняя цепь",
+    focus: "ягодицы, задняя поверхность бедра, без лишнего добивания ног",
     duration: "55-60 мин",
     accent: "ягодицы и задняя поверхность бедра",
+    completionEffect: {
+      title: "После тренировки",
+      summary: "Главное ощущение должно быть в ягодицах и задней поверхности бедра, без сильного забивания передней части ног.",
+      bullets: [
+        "ягодицы плотные и тёплые, особенно после моста",
+        "задняя поверхность бедра чувствует растяжение и работу",
+        "поясница не должна быть главным местом усталости",
+      ],
+      recovery: "Если сильнее всего устала поясница, уменьши вес в тяге и делай таз назад медленнее.",
+    },
     exercises: [
-      { exerciseId: "hip-thrust", volume: "5x10-12", load: "12-20 кг", cue: "пауза вверху" },
-      { exerciseId: "rdl", volume: "4x10-12", load: "12-20 кг", cue: "таз назад" },
-      { exerciseId: "bulgarian", volume: "3x10-12/нога", load: "свой вес/штанга", cue: "наклон к ягодице" },
-      { exerciseId: "kickback", volume: "3x18-20/нога", load: "резинка", cue: "таз не раскрывать" },
-      { exerciseId: "monster-walk", volume: "3x20 шагов", load: "тканевая", cue: "колени наружу" },
+      { exerciseId: "hip-thrust", volume: "5x10-12", load: "штанга 12-20 кг общим весом", cue: "пауза вверху" },
+      { exerciseId: "rdl", volume: "4x10-12", load: "штанга 12-18 кг общим весом", cue: "таз назад" },
+      { exerciseId: "bulgarian", volume: "3x10-12/нога", load: "свой вес, потом штанга до 10-12 кг общим весом", cue: "наклон к ягодице" },
+      { exerciseId: "kickback", volume: "3x18-20/нога", load: "лёгкая/средняя резинка с ручкой низко", cue: "таз не раскрывать" },
+      { exerciseId: "monster-walk", volume: "3x20 шагов", load: "средняя тканевая резинка над коленями", cue: "колени наружу" },
       { exerciseId: "plank", volume: "3x45 сек", load: "свой вес", cue: "кор напряжён" },
     ],
   },
@@ -486,13 +514,23 @@ export const workouts: Workout[] = [
     focus: "широчайшие, руки, кор",
     duration: "55-60 мин",
     accent: "спина, плечи, кор",
+    completionEffect: {
+      title: "После тренировки",
+      summary: "Должно быть ощущение подтянутой спины, включённых рук и устойчивого корпуса.",
+      bullets: [
+        "широчайшие и область под лопатками чувствуют работу",
+        "руки устали равномерно, без боли в локтях и запястьях",
+        "кор держал корпус, но поясница не перегружена",
+      ],
+      recovery: "Если плечи тянет к ушам, бери более лёгкую резинку и делай тяги медленнее.",
+    },
     exercises: [
-      { exerciseId: "band-pulldown", volume: "4x12-15", load: "к двери", cue: "локти вниз" },
-      { exerciseId: "face-pull", volume: "4x15", load: "средняя резинка", cue: "плечи не задирать" },
+      { exerciseId: "band-pulldown", volume: "4x12-15", load: "средняя резинка с ручками сверху", cue: "локти вниз" },
+      { exerciseId: "face-pull", volume: "4x15", load: "лёгкая/средняя резинка с ручками", cue: "плечи не задирать" },
       { exerciseId: "incline-pushup", volume: "4 подхода", load: "стул/диван", cue: "1-2 повтора в запасе" },
-      { exerciseId: "lateral-raise", volume: "4x15", load: "1 кг/резинка", cue: "без рывков" },
-      { exerciseId: "biceps", volume: "3x15", load: "резинка", cue: "темп 2-0-2" },
-      { exerciseId: "triceps", volume: "3x15", load: "резинка", cue: "полное выпрямление" },
+      { exerciseId: "lateral-raise", volume: "4x15", load: "утяжелители 1 кг или лёгкая резинка", cue: "без рывков" },
+      { exerciseId: "biceps", volume: "3x12-15", load: "лёгкая/средняя резинка с ручками", cue: "темп 2-0-2" },
+      { exerciseId: "triceps", volume: "3x12-15", load: "лёгкая/средняя резинка сверху", cue: "полное выпрямление" },
       { exerciseId: "dead-bug", volume: "3x15", load: "свой вес", cue: "таз стабилен" },
       { exerciseId: "plank", volume: "3x60 сек", load: "свой вес", cue: "дышать ровно" },
     ],
@@ -506,6 +544,16 @@ export const workouts: Workout[] = [
     duration: "45-60 мин",
     accent: "4 круга",
     note: "Отдых между упражнениями 20–30 сек, между кругами 90 сек.",
+    completionEffect: {
+      title: "После тренировки",
+      summary: "Эффект должен быть общий: пульс выше, тело разогрето, мышцы поработали, но без ощущения полного разбора.",
+      bullets: [
+        "дыхание участилось, но восстановилось за несколько минут",
+        "спина, ягодицы, плечи и кор включились без острой боли",
+        "после тренировки остаётся тонус, а не сильная разбитость",
+      ],
+      recovery: "Если круговая выбивает слишком сильно, оставь 3 круга или увеличь отдых до 45 секунд.",
+    },
     circuit: {
       rounds: 4,
       exerciseRestSec: 25,
@@ -513,21 +561,21 @@ export const workouts: Workout[] = [
     },
     exercises: [
       { exerciseId: "step-jack", volume: "45 сек", load: "свой вес", cue: "шаг в сторону" },
-      { exerciseId: "barbell-row", volume: "12-15", load: "10-16 кг", cue: "без рывков" },
-      { exerciseId: "rdl", volume: "12-15", load: "10-18 кг", cue: "задняя поверхность бедра" },
-      { exerciseId: "band-press", volume: "12-15", load: "резинка", cue: "кор напряжён" },
+      { exerciseId: "barbell-row", volume: "12-15", load: "штанга 10-12 кг общим весом", cue: "без рывков" },
+      { exerciseId: "rdl", volume: "12-15", load: "штанга 10-14 кг общим весом", cue: "задняя поверхность бедра" },
+      { exerciseId: "band-press", volume: "12-15", load: "лёгкая резинка с ручками", cue: "кор напряжён" },
       { exerciseId: "slow-mountain", volume: "40 сек", load: "свой вес", cue: "шагами" },
       { exerciseId: "walkout", volume: "8-10", load: "свой вес", cue: "контроль" },
-      { exerciseId: "shadow-boxing", volume: "60 сек", load: "1 кг", cue: "лёгкие удары" },
+      { exerciseId: "shadow-boxing", volume: "60 сек", load: "утяжелители 1 кг или без веса", cue: "лёгкие удары" },
     ],
   },
 ];
 
 export const progression: ProgressionBlock[] = [
-  { weeks: "1-2", focus: "Техника", barbell: "10-12 кг", intensity: "2-3 повтора в запасе", cue: "Не гонись за весом." },
-  { weeks: "3-4", focus: "Нагрузка", barbell: "12-15 кг", intensity: "1-2 повтора в запасе", cue: "Добавь плотность резинок." },
-  { weeks: "5-6", focus: "Плотность", barbell: "15-18 кг", intensity: "последний подход почти до отказа", cue: "Отдых короче, форма та же." },
-  { weeks: "7-8", focus: "Финальный блок", barbell: "18-20 кг", intensity: "около отказа в ключевых", cue: "Стоп, если ломается форма." },
+  { weeks: "1-2", focus: "Техника", barbell: "штанга 10-12 кг общим весом", intensity: "2-3 повтора в запасе", cue: "Руки и плечи не веди до отказа." },
+  { weeks: "3-4", focus: "Нагрузка", barbell: "штанга 12-15 кг общим весом", intensity: "1-2 повтора в запасе", cue: "Добавляй вес или плотность резинки только при чистой технике." },
+  { weeks: "5-6", focus: "Плотность", barbell: "штанга 15-18 кг общим весом", intensity: "последний подход почти до отказа", cue: "Ноги сильные, но поясницу не добивай." },
+  { weeks: "7-8", focus: "Финальный блок", barbell: "штанга 18-20 кг общим весом", intensity: "около отказа в ключевых", cue: "Стоп, если ломается форма или плечи тянут шею." },
 ];
 
 export const warmupSteps: WarmupStep[] = [
@@ -541,13 +589,13 @@ export const warmupSteps: WarmupStep[] = [
     id: "activation",
     title: "Активация мышц",
     duration: "3 мин",
-    details: "Сведение резинки 2×15, ягодичный мост 2×12, мёртвый жук 1×10 на сторону.",
+    details: "Сведение лёгкой резинки 2×15, ягодичный мост с тканевой резинкой 2×12, мёртвый жук 1×10 на сторону.",
   },
   {
     id: "ramp-up",
     title: "Подводящий подход",
     duration: "3-5 мин",
-    details: "1-2 лёгких подхода первого упражнения: половина рабочего веса или лёгкая резинка.",
+    details: "1-2 лёгких подхода первого упражнения: половина рабочего веса штанги или самая лёгкая резинка с ручками.",
   },
 ];
 

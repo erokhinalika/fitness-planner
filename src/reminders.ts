@@ -2,19 +2,12 @@ import type { PlannerMeta, ReminderMarks } from "./storage";
 
 export type ReminderSettings = PlannerMeta["reminders"];
 
-const WEEKDAY_WORKOUTS: Record<number, string> = {
-  1: "Верх тела A",
-  3: "Ягодицы",
-  5: "Верх тела B",
-  6: "Всё тело",
-};
-
-const WEEKDAY_WORKOUT_LABELS: Record<number, string> = {
-  1: "верх A",
-  3: "ягодицы",
-  5: "верх B",
-  6: "всё тело",
-};
+const scheduledWorkouts = [
+  { offset: 0, title: "Верх тела A", label: "верх A" },
+  { offset: 2, title: "Ягодицы + задняя цепь", label: "ягодицы" },
+  { offset: 4, title: "Верх тела B", label: "верх B" },
+  { offset: 5, title: "Всё тело", label: "всё тело" },
+];
 
 export function createDefaultReminders(): ReminderSettings {
   return {
@@ -36,6 +29,10 @@ function todayKey() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function dayKey(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+}
+
 function isPastScheduledTime(hours: number, minutes: number, now = new Date()) {
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
   const targetMinutes = hours * 60 + minutes;
@@ -47,6 +44,16 @@ function getCurrentWeek(startDate: string) {
   if (Number.isNaN(start.getTime())) return 1;
   const diff = Date.now() - start.getTime();
   return Math.min(8, Math.max(1, Math.floor(diff / (7 * 24 * 60 * 60 * 1000)) + 1));
+}
+
+function getPlanDay(startDate: string, now = new Date()) {
+  const start = new Date(`${startDate}T00:00:00`);
+  if (Number.isNaN(start.getTime())) return null;
+  const day = Math.floor((dayKey(now) - dayKey(start)) / (24 * 60 * 60 * 1000));
+  if (day < 0) return null;
+  const week = Math.floor(day / 7) + 1;
+  if (week > 8) return null;
+  return { week, dayInWeek: day % 7 };
 }
 
 export function getReminderPermission() {
@@ -73,24 +80,23 @@ export function collectDueReminders(meta: PlannerMeta, now = new Date()): Remind
 
   const marks = meta.reminderMarks ?? {};
   const today = todayKey();
-  const weekday = now.getDay();
+  const planDay = getPlanDay(meta.startDate, now);
   const due: ReminderPayload[] = [];
 
-  const workoutTitle = WEEKDAY_WORKOUTS[weekday];
-  const workoutLabel = WEEKDAY_WORKOUT_LABELS[weekday];
+  const workout = planDay ? scheduledWorkouts.find((item) => item.offset === planDay.dayInWeek) : undefined;
   const workoutTime = parseTime(meta.reminders.workoutTime);
-  if (workoutLabel && marks.workout !== today && isPastScheduledTime(workoutTime.hours, workoutTime.minutes, now)) {
+  if (workout && marks.workout !== today && isPastScheduledTime(workoutTime.hours, workoutTime.minutes, now)) {
     due.push({
       markKey: "workout",
-      title: `Сегодня ${workoutLabel}`,
-      body: `${workoutTitle}. Открой план и начни.`,
+      title: `Сегодня ${workout.label}`,
+      body: `${workout.title}. Неделя ${planDay?.week ?? 1}, день ${workout.offset + 1}. Открой план и начни.`,
       tag: "workout-reminder",
     });
   }
 
   const week = getCurrentWeek(meta.startDate);
   const measureTime = parseTime(meta.reminders.measureTime);
-  if (weekday === 1 && marks.measure !== today && isPastScheduledTime(measureTime.hours, measureTime.minutes, now)) {
+  if (planDay?.dayInWeek === 0 && marks.measure !== today && isPastScheduledTime(measureTime.hours, measureTime.minutes, now)) {
     due.push({
       markKey: "measure",
       title: `Неделя ${week} — замеры`,

@@ -2,19 +2,12 @@ const DB_NAME = "angelika-fitness-planner";
 const META_KEY = "state";
 const CHECK_INTERVAL_MS = 15 * 60 * 1000;
 
-const WEEKDAY_WORKOUTS = {
-  1: "Верх тела A",
-  3: "Ягодицы",
-  5: "Верх тела B",
-  6: "Всё тело",
-};
-
-const WEEKDAY_WORKOUT_LABELS = {
-  1: "верх A",
-  3: "ягодицы",
-  5: "верх B",
-  6: "всё тело",
-};
+const SCHEDULED_WORKOUTS = [
+  { offset: 0, title: "Верх тела A", label: "верх A" },
+  { offset: 2, title: "Ягодицы + задняя цепь", label: "ягодицы" },
+  { offset: 4, title: "Верх тела B", label: "верх B" },
+  { offset: 5, title: "Всё тело", label: "всё тело" },
+];
 
 let lastCheck = 0;
 let cachedMeta = null;
@@ -31,6 +24,10 @@ function todayKey() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function dayKey(date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+}
+
 function isPastScheduledTime(hours, minutes) {
   const now = new Date();
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
@@ -42,6 +39,16 @@ function currentWeek(startDate) {
   if (Number.isNaN(start.getTime())) return 1;
   const diff = Date.now() - start.getTime();
   return Math.min(8, Math.max(1, Math.floor(diff / (7 * 24 * 60 * 60 * 1000)) + 1));
+}
+
+function planDay(startDate) {
+  const start = new Date(`${startDate}T00:00:00`);
+  if (Number.isNaN(start.getTime())) return null;
+  const day = Math.floor((dayKey(new Date()) - dayKey(start)) / (24 * 60 * 60 * 1000));
+  if (day < 0) return null;
+  const week = Math.floor(day / 7) + 1;
+  if (week > 8) return null;
+  return { week, dayInWeek: day % 7 };
 }
 
 function openDb() {
@@ -77,24 +84,23 @@ function collectDueReminders(meta) {
 
   const marks = meta.reminderMarks || {};
   const today = todayKey();
-  const weekday = new Date().getDay();
+  const currentPlanDay = planDay(meta.startDate);
   const due = [];
 
-  const workoutTitle = WEEKDAY_WORKOUTS[weekday];
-  const workoutLabel = WEEKDAY_WORKOUT_LABELS[weekday];
+  const workout = currentPlanDay ? SCHEDULED_WORKOUTS.find((item) => item.offset === currentPlanDay.dayInWeek) : undefined;
   const workoutTime = parseTime(meta.reminders.workoutTime);
-  if (workoutLabel && marks.workout !== today && isPastScheduledTime(workoutTime.hours, workoutTime.minutes)) {
+  if (workout && marks.workout !== today && isPastScheduledTime(workoutTime.hours, workoutTime.minutes)) {
     due.push({
       markKey: "workout",
-      title: `Сегодня ${workoutLabel}`,
-      body: `${workoutTitle}. Открой план и начни.`,
+      title: `Сегодня ${workout.label}`,
+      body: `${workout.title}. Неделя ${currentPlanDay.week}, день ${workout.offset + 1}. Открой план и начни.`,
       tag: "workout-reminder",
     });
   }
 
   const week = currentWeek(meta.startDate);
   const measureTime = parseTime(meta.reminders.measureTime);
-  if (weekday === 1 && marks.measure !== today && isPastScheduledTime(measureTime.hours, measureTime.minutes)) {
+  if (currentPlanDay?.dayInWeek === 0 && marks.measure !== today && isPastScheduledTime(measureTime.hours, measureTime.minutes)) {
     due.push({
       markKey: "measure",
       title: `Неделя ${week} — замеры`,
