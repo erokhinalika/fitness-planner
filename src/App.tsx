@@ -576,11 +576,11 @@ function App() {
   }
 
   async function onPhotoUpload(event: ChangeEvent<HTMLInputElement>, label: string, week: number) {
-    const file = event.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(event.target.files ?? []);
+    if (!files.length) return;
     try {
-      const photo = await addPlannerPhoto(file, label, week);
-      setPhotos((current) => [photo, ...current.filter((item) => !(item.label === label && item.week === week))].slice(0, 48));
+      const uploadedPhotos = await Promise.all(files.map((file) => addPlannerPhoto(file, label, week)));
+      setPhotos((current) => [...uploadedPhotos, ...current].slice(0, 48));
     } catch {
       alert("Не удалось сохранить фото.");
     }
@@ -3216,6 +3216,9 @@ function ProgressPanel({
             <UploadTile label="После" week={8} onUpload={onPhotoUpload} flat />
             <UploadTile label="Еженедельно" week={photos[0]?.week ? Math.min(8, photos[0].week + 1) : 1} onUpload={onPhotoUpload} flat />
           </div>
+          <p className="mt-3 text-xs leading-5 text-stone-500">
+            Можно добавить несколько фото в одну неделю или выбрать сразу несколько файлов. Сравнение «до/после» берёт самые подходящие снимки из галереи.
+          </p>
           {photos.length > 0 ? (
             <div className="mt-4 grid gap-px overflow-hidden rounded-2xl bg-white/[0.06] sm:grid-cols-2">
               {photos.map((photo) => (
@@ -4351,7 +4354,7 @@ function UploadTile({
       <Upload className="text-lime-200" size={22} />
       <span className="mt-3 text-sm font-semibold text-white">{label}</span>
       <span className="mt-1 text-xs text-stone-500">Неделя {week}</span>
-      <input className="hidden" type="file" accept="image/*" onChange={(event) => onUpload(event, label, week)} />
+      <input className="hidden" type="file" accept="image/*" multiple onChange={(event) => onUpload(event, label, week)} />
     </label>
   );
 }
