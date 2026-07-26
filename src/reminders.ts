@@ -43,7 +43,7 @@ function getCurrentWeek(startDate: string) {
   const start = new Date(`${startDate}T00:00:00`);
   if (Number.isNaN(start.getTime())) return 1;
   const diff = Date.now() - start.getTime();
-  return Math.min(8, Math.max(1, Math.floor(diff / (7 * 24 * 60 * 60 * 1000)) + 1));
+  return Math.max(1, Math.floor(diff / (7 * 24 * 60 * 60 * 1000)) + 1);
 }
 
 function getPlanDay(startDate: string, now = new Date()) {
@@ -52,7 +52,6 @@ function getPlanDay(startDate: string, now = new Date()) {
   const day = Math.floor((dayKey(now) - dayKey(start)) / (24 * 60 * 60 * 1000));
   if (day < 0) return null;
   const week = Math.floor(day / 7) + 1;
-  if (week > 8) return null;
   return { week, dayInWeek: day % 7 };
 }
 

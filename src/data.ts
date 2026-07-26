@@ -15,6 +15,7 @@ export type WorkoutId = "upper-a" | "glutes" | "upper-b" | "full-body";
 export type ExerciseCategory = "Верх" | "Ягодицы" | "Кор" | "Кардио";
 export type Equipment =
   | "штанга"
+  | "гантели"
   | "резинки"
   | "тканевая резинка"
   | "коврик"
@@ -34,6 +35,7 @@ export type Exercise = {
   technique: string[];
   quietCue: string;
   Icon: LucideIcon;
+  alternatives?: string[];
 };
 
 export type WorkoutExercise = {
@@ -140,6 +142,7 @@ export const exercises: Exercise[] = [
     ],
     quietCue: "Опускай штангу плавно.",
     Icon: Dumbbell,
+    alternatives: ["db-row"],
   },
   {
     id: "band-press",
@@ -157,6 +160,7 @@ export const exercises: Exercise[] = [
     ],
     quietCue: "Движение плавное.",
     Icon: BicepsFlexed,
+    alternatives: ["db-shoulder-press"],
   },
   {
     id: "face-pull",
@@ -174,12 +178,13 @@ export const exercises: Exercise[] = [
     ],
     quietCue: "Проверь крепление резинки до подхода.",
     Icon: Target,
+    alternatives: ["band-pulldown", "db-row"],
   },
   {
     id: "lateral-raise",
     name: "Разведения рук в стороны",
     category: "Верх",
-    equipment: ["утяжелители", "резинки"],
+    equipment: ["гантели", "утяжелители", "резинки"],
     muscles: "средняя дельта",
     mediaUrl: "/exercises/lateral-raise.gif",
     sourceUrl: "https://fitnessprogramer.com/exercise/dumbbell-lateral-raise/",
@@ -208,6 +213,7 @@ export const exercises: Exercise[] = [
     ],
     quietCue: "Контроль амплитуды важнее натяжения.",
     Icon: BicepsFlexed,
+    alternatives: ["db-curl"],
   },
   {
     id: "triceps",
@@ -225,6 +231,7 @@ export const exercises: Exercise[] = [
     ],
     quietCue: "Сделай шаг назад, если резинка натянута слишком сильно.",
     Icon: BicepsFlexed,
+    alternatives: ["db-triceps"],
   },
   {
     id: "plank",
@@ -242,6 +249,7 @@ export const exercises: Exercise[] = [
     ],
     quietCue: "Заканчивай подход, пока держишь форму.",
     Icon: HeartPulse,
+    alternatives: ["dead-bug", "walkout"],
   },
   {
     id: "dead-bug",
@@ -259,6 +267,7 @@ export const exercises: Exercise[] = [
     ],
     quietCue: "Поясница остаётся прижатой к полу.",
     Icon: HeartPulse,
+    alternatives: ["plank"],
   },
   {
     id: "hip-thrust",
@@ -276,6 +285,7 @@ export const exercises: Exercise[] = [
     ],
     quietCue: "Положи полотенце под штангу.",
     Icon: Flame,
+    alternatives: ["db-hip-thrust"],
   },
   {
     id: "rdl",
@@ -293,12 +303,13 @@ export const exercises: Exercise[] = [
     ],
     quietCue: "Штанга скользит вдоль ног.",
     Icon: Dumbbell,
+    alternatives: ["db-rdl"],
   },
   {
     id: "bulgarian",
     name: "Болгарские выпады",
     category: "Ягодицы",
-    equipment: ["стул/диван", "штанга", "свой вес"],
+    equipment: ["стул/диван", "штанга", "гантели", "свой вес"],
     muscles: "ягодицы, задняя поверхность бедра, стабилизаторы",
     mediaUrl: "/exercises/bulgarian.webp",
     sourceUrl: "https://fitnessprogramer.com/exercise/bulgarian-split-squat/",
@@ -327,6 +338,7 @@ export const exercises: Exercise[] = [
     ],
     quietCue: "Таз не разворачивается в сторону.",
     Icon: Flame,
+    alternatives: ["monster-walk"],
   },
   {
     id: "monster-walk",
@@ -344,6 +356,7 @@ export const exercises: Exercise[] = [
     ],
     quietCue: "Колени смотрят в сторону носков.",
     Icon: Flame,
+    alternatives: ["kickback"],
   },
   {
     id: "band-pulldown",
@@ -361,6 +374,7 @@ export const exercises: Exercise[] = [
     ],
     quietCue: "Проверь крепление резинки до подхода.",
     Icon: Target,
+    alternatives: ["face-pull", "db-row"],
   },
   {
     id: "incline-pushup",
@@ -429,6 +443,7 @@ export const exercises: Exercise[] = [
     ],
     quietCue: "Руки ставь под плечами.",
     Icon: HeartPulse,
+    alternatives: ["plank"],
   },
   {
     id: "shadow-boxing",
@@ -446,6 +461,114 @@ export const exercises: Exercise[] = [
     ],
     quietCue: "Плечи расслаблены, корпус стабилен.",
     Icon: AudioLines,
+  },
+  {
+    id: "db-row",
+    name: "Тяга гантели в наклоне",
+    category: "Верх",
+    equipment: ["гантели"],
+    muscles: "широчайшие, ромбовидные, задняя дельта, бицепс",
+    mediaUrl: "/exercises/db-row.gif",
+    sourceUrl: "https://fitnessprogramer.com/exercise/dumbbell-row/",
+    setup: "Колено и рука одноимённой стороны на скамье или стуле, спина ровная, корпус параллельно полу.",
+    technique: [
+      "Тяни гантель вверх, локоть идёт вдоль корпуса к тазу.",
+      "Вверху на секунду сведи лопатку к позвоночнику.",
+      "Опускай гантель медленно, не теряя контроль.",
+    ],
+    quietCue: "Спина остаётся ровной, без скручивания.",
+    Icon: Dumbbell,
+    alternatives: ["barbell-row"],
+  },
+  {
+    id: "db-rdl",
+    name: "Румынская тяга с гантелями",
+    category: "Ягодицы",
+    equipment: ["гантели"],
+    muscles: "задняя поверхность бедра, ягодицы, разгибатели спины",
+    mediaUrl: "/exercises/db-rdl.gif",
+    sourceUrl: "https://fitnessprogramer.com/exercise/dumbbell-romanian-deadlift/",
+    setup: "Стопы на ширине таза, гантели перед бёдрами, колени мягкие.",
+    technique: [
+      "Отводи таз назад, гантели скользят вдоль ног.",
+      "Останавливайся, когда чувствуешь растяжение задней поверхности бедра.",
+      "Поднимайся за счёт ягодиц, толкая таз вперёд.",
+    ],
+    quietCue: "Гантели держи ближе к ногам.",
+    Icon: Dumbbell,
+    alternatives: ["rdl"],
+  },
+  {
+    id: "db-hip-thrust",
+    name: "Ягодичный мост с гантелью",
+    category: "Ягодицы",
+    equipment: ["гантели"],
+    muscles: "ягодицы, задняя поверхность бедра",
+    mediaUrl: "/exercises/db-hip-thrust.gif",
+    sourceUrl: "https://fitnessprogramer.com/exercise/dumbbell-glute-bridge/",
+    setup: "Лёжа на спине, колени согнуты, гантель на тазу придерживай руками.",
+    technique: [
+      "Подними таз вверх, толкая пятками в пол, до прямой линии плечи-таз-колени.",
+      "Вверху на секунду сожми ягодицы.",
+      "Опускай таз медленно, не роняя вес.",
+    ],
+    quietCue: "Придерживай гантель руками, чтобы не каталась.",
+    Icon: Flame,
+    alternatives: ["hip-thrust"],
+  },
+  {
+    id: "db-shoulder-press",
+    name: "Жим гантелей стоя",
+    category: "Верх",
+    equipment: ["гантели"],
+    muscles: "плечи, трицепс, верх груди",
+    mediaUrl: "/exercises/db-shoulder-press.gif",
+    sourceUrl: "https://fitnessprogramer.com/exercise/standing-dumbbell-shoulder-press/",
+    setup: "Стоя, стопы на ширине плеч, гантели у плеч ладонями вперёд.",
+    technique: [
+      "Выжимай гантели вверх, не прогибая поясницу.",
+      "Кисти остаются над локтями на всём пути.",
+      "Опускай гантели до уровня плеч под контролем.",
+    ],
+    quietCue: "Корпус стабилен, без раскачки.",
+    Icon: BicepsFlexed,
+    alternatives: ["band-press"],
+  },
+  {
+    id: "db-curl",
+    name: "Сгибание рук с гантелями",
+    category: "Верх",
+    equipment: ["гантели"],
+    muscles: "бицепс, предплечья",
+    mediaUrl: "/exercises/db-curl.gif",
+    sourceUrl: "https://fitnessprogramer.com/exercise/dumbbell-curl/",
+    setup: "Стоя, гантели у бёдер, ладони развёрнуты внутрь.",
+    technique: [
+      "Сгибай руки без раскачки корпусом, локти у корпуса.",
+      "Вверху сожми бицепс на секунду.",
+      "Опускай на 2 секунды, полностью выпрямляя руку.",
+    ],
+    quietCue: "Локти неподвижны на протяжении всего движения.",
+    Icon: BicepsFlexed,
+    alternatives: ["biceps"],
+  },
+  {
+    id: "db-triceps",
+    name: "Разгибание гантели из-за головы",
+    category: "Верх",
+    equipment: ["гантели"],
+    muscles: "трицепс",
+    mediaUrl: "/exercises/db-triceps.gif",
+    sourceUrl: "https://fitnessprogramer.com/exercise/dumbbell-triceps-extension/",
+    setup: "Стоя или сидя, гантель держи двумя руками за верхний блин, руки выпрямлены над головой.",
+    technique: [
+      "Сгибай локти, опуская гантель за голову, локти смотрят вперёд.",
+      "Опускай до параллели предплечий с полом.",
+      "Разгибай руки вверх, не разводя локти в стороны.",
+    ],
+    quietCue: "Локти держи близко к ушам.",
+    Icon: BicepsFlexed,
+    alternatives: ["triceps"],
   },
 ];
 

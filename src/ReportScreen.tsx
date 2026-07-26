@@ -173,7 +173,10 @@ export function ReportScreen({
             <h1 className="mt-3 text-4xl font-semibold tracking-[-0.05em] text-stone-950 sm:text-5xl">{profile.name}</h1>
             <p className="mt-3 max-w-2xl text-base leading-7 text-stone-600">{profile.goal}</p>
             <div className="mt-6 flex flex-wrap gap-2 text-sm text-stone-600">
-              <span className="rounded-full bg-white/80 px-3 py-1 ring-1 ring-stone-200">Неделя {currentWeek} из 8</span>
+              <span className="rounded-full bg-white/80 px-3 py-1 ring-1 ring-stone-200">
+                Неделя {currentWeek}
+                {currentWeek <= 8 ? " из 8" : ""}
+              </span>
               <span className="rounded-full bg-white/80 px-3 py-1 ring-1 ring-stone-200">Старт {formatShortDate(state.startDate)}</span>
               <span className="rounded-full bg-white/80 px-3 py-1 ring-1 ring-stone-200">Сформирован {formatReportDate()}</span>
             </div>

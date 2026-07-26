@@ -51,6 +51,7 @@ export type PlannerMeta = {
   version: 3;
   startDate: string;
   completed: Record<string, boolean>;
+  calendarLog: Record<string, WorkoutId[]>;
   measurements: Measurement[];
   shopping: Record<string, boolean>;
   selectedMeals: Record<string, string>;
@@ -84,11 +85,23 @@ export function createDefaultMeasurements(): Measurement[] {
   }));
 }
 
+export function ensureMeasurementWeeks(measurements: Measurement[], targetWeek: number): Measurement[] {
+  const maxExisting = measurements.reduce((max, item) => Math.max(max, item.week), 0);
+  if (targetWeek <= maxExisting) return measurements;
+
+  const extra: Measurement[] = [];
+  for (let week = maxExisting + 1; week <= targetWeek; week += 1) {
+    extra.push({ week, weight: "", waist: "", belly: "", hips: "", note: "" });
+  }
+  return [...measurements, ...extra];
+}
+
 export function createDefaultMeta(): PlannerMeta {
   return {
     version: 3,
     startDate: todayInputValue(),
     completed: {},
+    calendarLog: {},
     measurements: createDefaultMeasurements(),
     shopping: {},
     selectedMeals: Object.fromEntries(meals.map((meal) => [meal.id, meal.options[0]?.id ?? ""])),
@@ -260,6 +273,7 @@ async function migrateLegacyLocalStorage(db: IDBDatabase) {
       weightLogs: parsed.weightLogs ?? {},
       reminders: parsed.reminders ?? createDefaultMeta().reminders,
       reminderMarks: parsed.reminderMarks ?? {},
+      calendarLog: parsed.calendarLog ?? {},
     };
     await writeMeta(db, meta);
     await importLegacyPhotos(db, parsed.photos);
@@ -287,6 +301,7 @@ export async function loadPlannerData() {
     reminderMarks: meta.reminderMarks ?? {},
     extraFood: meta.extraFood ?? [],
     useMenuToday: meta.useMenuToday ?? true,
+    calendarLog: meta.calendarLog ?? {},
   };
   const records = await readAllPhotos(db);
   return {
@@ -377,6 +392,7 @@ export async function importPlannerPayload(payload: ExportPayload) {
     weightLogs: incoming.weightLogs ?? {},
     reminders: incoming.reminders ?? createDefaultMeta().reminders,
     reminderMarks: incoming.reminderMarks ?? {},
+    calendarLog: incoming.calendarLog ?? {},
   };
   await writeMeta(db, meta);
   await importLegacyPhotos(db, incoming.photos);
@@ -396,4 +412,36 @@ export type JournalExerciseId = (typeof journalExerciseIds)[number];
 
 export function getWorkoutKey(week: number, workoutId: WorkoutId) {
   return `week-${week}:${workoutId}`;
+}
+
+function getWeekForDate(startDate: string, date: string) {
+  const start = new Date(`${startDate}T00:00:00`);
+  const target = new Date(`${date}T00:00:00`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(target.getTime())) return 1;
+  const diffDays = Math.floor((target.getTime() - start.getTime()) / (24 * 60 * 60 * 1000));
+  return Math.min(8, Math.max(1, Math.floor(diffDays / 7) + 1));
+}
+
+export function logWorkoutOnDate(meta: PlannerMeta, date: string, workoutId: WorkoutId): PlannerMeta {
+  const existing = meta.calendarLog[date] ?? [];
+  const calendarLog = existing.includes(workoutId)
+    ? meta.calendarLog
+    : { ...meta.calendarLog, [date]: [...existing, workoutId] };
+
+  const key = getWorkoutKey(getWeekForDate(meta.startDate, date), workoutId);
+  const completed = meta.completed[key] ? meta.completed : { ...meta.completed, [key]: true };
+
+  return { ...meta, calendarLog, completed };
+}
+
+export function removeWorkoutLog(meta: PlannerMeta, date: string, workoutId: WorkoutId): PlannerMeta {
+  const existing = meta.calendarLog[date];
+  if (!existing?.includes(workoutId)) return meta;
+
+  const filtered = existing.filter((id) => id !== workoutId);
+  const calendarLog = { ...meta.calendarLog };
+  if (filtered.length) calendarLog[date] = filtered;
+  else delete calendarLog[date];
+
+  return { ...meta, calendarLog };
 }

@@ -9,7 +9,11 @@ import {
   type ProgressPhotoView,
 } from "./storage";
 
-const weeks = Array.from({ length: 8 }, (_, index) => index + 1);
+const minWeeks = 8;
+
+function buildWeekList(totalWeeks: number) {
+  return Array.from({ length: totalWeeks }, (_, index) => index + 1);
+}
 
 export function parseMeasurementValue(value: string) {
   const parsed = Number(String(value).replace(",", "."));
@@ -64,8 +68,8 @@ export function pickReportPhotos(photos: ProgressPhotoView[]) {
   return null;
 }
 
-export function getWorkoutRows(completed: Record<string, boolean>) {
-  return weeks.map((week) => ({
+export function getWorkoutRows(completed: Record<string, boolean>, totalWeeks: number) {
+  return buildWeekList(totalWeeks).map((week) => ({
     week,
     block: getProgressionForWeek(week),
     workouts: workouts.map((workout) => ({
@@ -78,8 +82,8 @@ export function getWorkoutRows(completed: Record<string, boolean>) {
   }));
 }
 
-export function getWeightJournalRows(weightLogs: Record<string, string>, exerciseNames: Record<string, string>) {
-  return weeks.map((week) => {
+export function getWeightJournalRows(weightLogs: Record<string, string>, exerciseNames: Record<string, string>, totalWeeks: number) {
+  return buildWeekList(totalWeeks).map((week) => {
     const block = getProgressionForWeek(week);
     return {
       week,
@@ -127,12 +131,13 @@ export function buildReportSummary(
   currentWeek: number,
   exerciseNames: Record<string, string>,
 ): ReportSummary {
+  const totalWeeks = Math.max(minWeeks, currentWeek, ...state.measurements.map((item) => item.week));
   return {
     baseline: getBaselineMeasurement(state.measurements),
     latest: getLatestMeasurement(state.measurements),
     comparePhotos: pickReportPhotos(photos),
-    workoutRows: getWorkoutRows(state.completed),
-    weightRows: getWeightJournalRows(state.weightLogs, exerciseNames),
+    workoutRows: getWorkoutRows(state.completed, totalWeeks),
+    weightRows: getWeightJournalRows(state.weightLogs, exerciseNames, totalWeeks),
     filledMeasurements: getFilledMeasurementWeeks(state.measurements),
     progressionBlock: getCurrentProgressionBlock(currentWeek),
   };
