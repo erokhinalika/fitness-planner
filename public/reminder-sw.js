@@ -87,7 +87,9 @@ function collectDueReminders(meta) {
   const currentPlanDay = planDay(meta.startDate);
   const due = [];
 
-  const workout = currentPlanDay ? SCHEDULED_WORKOUTS.find((item) => item.offset === currentPlanDay.dayInWeek) : undefined;
+  const workout = currentPlanDay
+    ? SCHEDULED_WORKOUTS.find((item) => item.offset === currentPlanDay.dayInWeek)
+    : undefined;
   const workoutTime = parseTime(meta.reminders.workoutTime);
   if (workout && marks.workout !== today && isPastScheduledTime(workoutTime.hours, workoutTime.minutes)) {
     due.push({
@@ -100,7 +102,11 @@ function collectDueReminders(meta) {
 
   const week = currentWeek(meta.startDate);
   const measureTime = parseTime(meta.reminders.measureTime);
-  if (currentPlanDay?.dayInWeek === 0 && marks.measure !== today && isPastScheduledTime(measureTime.hours, measureTime.minutes)) {
+  if (
+    currentPlanDay?.dayInWeek === 0 &&
+    marks.measure !== today &&
+    isPastScheduledTime(measureTime.hours, measureTime.minutes)
+  ) {
     due.push({
       markKey: "measure",
       title: `Неделя ${week} — замеры`,

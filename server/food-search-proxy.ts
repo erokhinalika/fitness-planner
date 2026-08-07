@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import type { Connect } from "vite";
 import type { Plugin } from "vite";
 

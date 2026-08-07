@@ -1,3 +1,4 @@
+import { fileURLToPath, URL } from "node:url";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
@@ -5,6 +6,11 @@ import { VitePWA } from "vite-plugin-pwa";
 import { foodSearchProxyPlugin } from "./server/food-search-proxy";
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
+    },
+  },
   plugins: [
     react(),
     tailwindcss(),
@@ -38,14 +44,13 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ["**/*.{js,css,html,ico,svg,webp,gif,wasm,png,jpg,webmanifest}"],
+        globPatterns: ["**/*.{js,css,html,ico,svg,wasm,png,jpg,webmanifest}"],
         importScripts: ["reminder-sw.js"],
         navigateFallback: "index.html",
         navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [
           {
-            urlPattern: ({ request, url }) =>
-              request.method === "GET" && url.pathname.startsWith("/exercises/"),
+            urlPattern: ({ request, url }) => request.method === "GET" && url.pathname.startsWith("/exercises/"),
             handler: "CacheFirst",
             options: {
               cacheName: "exercise-media",

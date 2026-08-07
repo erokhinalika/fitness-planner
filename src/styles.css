@@ -29,9 +29,7 @@ body {
   margin: 0;
   min-width: 320px;
   overflow-x: hidden;
-  background:
-    linear-gradient(180deg, rgba(190, 242, 100, 0.04), transparent 360px),
-    #080907;
+  background: linear-gradient(180deg, rgba(190, 242, 100, 0.04), transparent 360px), #080907;
 }
 
 button,
